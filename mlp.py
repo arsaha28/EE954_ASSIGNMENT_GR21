@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import torchvision.datasets as datasets
 import torchvision.transforms as transforms
 import torch
+from torch.utils.data import DataLoader
 
 dataset_location = root = './data/'
 training_dataset = datasets.FashionMNIST(dataset_location,
@@ -103,50 +104,31 @@ def softmax(x):
     exp_x = np.exp(x)
     return exp_x / np.sum(exp_x, axis=1, keepdims=True)
 
+input_layers_config = [
+    {'neurons': 36, 'activation': 'relu'},
+    {'neurons': 36, 'activation': 'relu'}
+]
+output_layers_config = [
+    {'neurons': 10, 'activation': 'softmax'}
+]
+
 #Fully connected layer
 class NeuralNetwork:
     def flatten(self, X):
-      """
-      Flatten the input data X.
-
-      Args:
-      - X (numpy.ndarray): The input data to be flattened.
-
-      Returns:
-      - numpy.ndarray: The flattened data.
-      """
-
       batch_size = X.shape[0]
-
       #Flatten each image/sample to a 1D vector
       return X.reshape(batch_size, -1) # output(batch size, flattened size)
 
 
     def __init__(self, input_size, input_layers_config, output_layers_config):
-      """
-      Initialize the neural network with the specified configuration.
-
-      Args:
-      - input_size (int): The size of the input layer.
-      - input_layers_config (list): A list of dictionaries specifying the configuration of input layers.
-      - output_layers_config (list): A list of dictionaries specifying the configuration of output layers.
-      - layers (list): A list to store the layers of the neural network.
-      - activation_functions (list): A list to store the activation functions for each layer.
-
-      Returns:
-      - None
-
-      """
       self.layers = []
       self.activation_functions = []
-
       # Initialize weights and biases for each layer based on layers_config
       current_input_size = input_size
 
       for layer in input_layers_config:
           neurons = layer['neurons']
           activation = layer['activation']
-
           # Should be replaced with proper initialization methods (Xavier/He) as required:
           #initialize weights and bias(randomly)
           weights = np.random.randn(current_input_size, neurons) # shape of the matrix
@@ -172,16 +154,6 @@ class NeuralNetwork:
 
 
     def feedforward(self, X):
-      """
-      Perform a forward pass through the neural network.
-
-      Args:
-      - X (numpy.ndarray): The input to the network from CNN output.
-
-      Returns:
-      - yHat (numpy.ndarray): The output of the fully connected network.
-
-      """
       for i, layer in enumerate(self.layers):
           weights, bias = layer
           X = np.dot(X, weights) + bias
@@ -192,17 +164,11 @@ class NeuralNetwork:
               X = softmax(X) # output of the model
 
           yHat = X
-
+          print('YHAT',yHat)
+          
       return yHat
     
     def backward(self, X, y, learning_rate=0.01):
-        """
-        Backward propagation implementation
-        Args:
-        X: Input data
-        y: True labels (one-hot encoded)
-        learning_rate: Learning rate for gradient descent
-        """
         m = X.shape[0]
         n_layers = len(self.layers)
     
@@ -259,6 +225,7 @@ class NeuralNetwork:
             # Forward and backward pass, and weight updates for each batch
             yHat = self.feedforward(X_train)
             loss = self.compute_loss(yHat, y_train)
+            print('loss'+loss)
             self.backward(X_train, y_train, learning_rate)
             
             # Validation accuracy check (optional)
@@ -282,11 +249,9 @@ class NeuralNetwork:
         for params in param_grid:
             print(f"Testing configuration: {params}")
             model = NeuralNetwork(
-                input_size=params['input_size'],
-                hidden_sizes=params['hidden_sizes'],
-                output_size=params['output_size'],
-                dropout_rate=params['dropout_rate'],
-                activation=params['activation']
+                input_size=params['input_size'], 
+                input_layers_config=input_layers_config, 
+                output_layers_config=output_layers_config
             )
             
             model.train(
@@ -310,16 +275,9 @@ class NeuralNetwork:
         print(f"Best Validation Accuracy: {best_accuracy:.4f}")
         
         return best_params, best_accuracy        
-input_layers_config = [
-    {'neurons': 36, 'activation': 'relu'},
-    {'neurons': 36, 'activation': 'relu'}
-]
-output_layers_config = [
-    {'neurons': 10, 'activation': 'softmax'}
-]
 
 #create dummy CNN output
-import torch
+
 
 dummy_cnn_output = torch.randn(32, 200)  # (batch_size, num_features)
 print("Dummy CNN output shape:", dummy_cnn_output.shape)
@@ -327,8 +285,8 @@ print("Dummy CNN output shape:", dummy_cnn_output.shape)
 #Initialize the neural network with flexible layer configuration
 network = NeuralNetwork(input_size=200, input_layers_config=input_layers_config, output_layers_config=output_layers_config)
 
-output = network.feedforward(dummy_cnn_output)
-print(output)
+#output = network.feedforward(dummy_cnn_output)
+#print(output)
 
 # Sample usage of hyperparameter_search
 param_grid = [
@@ -339,8 +297,15 @@ param_grid = [
     # Add more configurations as needed
 ]
 
-#best_params, best_accuracy = NeuralNetwork.hyperparameter_search(new_train_dataset, new_test_dataset, X_val, y_val, param_grid)
-#print(f"Best hyperparameters: {best_params}")
-#print(f"Best validation accuracy: {best_accuracy:.4f}")
+# Convert validation set to numpy arrays for easy handling with the NeuralNetwork class
+# Using DataLoader for batch processing if needed
+val_loader = DataLoader(new_validation_dataset, batch_size=len(new_validation_dataset))
+X_val, y_val = next(iter(val_loader))  # Get entire validation set in one batch
+X_val = X_val.view(len(X_val), -1).numpy()  # Flatten and convert to numpy array
+y_val = torch.nn.functional.one_hot(y_val, num_classes=10).numpy()  # One-hot encode labels
+
+best_params, best_accuracy = NeuralNetwork.hyperparameter_search(new_train_dataset, new_test_dataset, X_val, y_val, param_grid)
+print(f"Best hyperparameters: {best_params}")
+print(f"Best validation accuracy: {best_accuracy:.4f}")
 
 
